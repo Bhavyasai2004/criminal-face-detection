@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Criminal Face Detection & Alert Ops</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-red-600 selection:text-white">
+
+    <!-- Header Navbar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-rose-700 flex items-center justify-center shadow-lg shadow-red-600/30">
+                    <i class="fa-solid fa-shield-halved text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-red-400 to-rose-500 bg-clip-text text-transparent">SecOps Vision // Facial Recognition Matrix</h1>
+                    <p class="text-xs text-slate-400">Live Surveillance & Watchlist Surveillance Grid</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="systemStatus" class="text-slate-300">System Active</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left & Center: Live Camera Feed & Analytics (2 cols) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Video & Canvas Overlay Container -->
+            <div class="relative bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center aspect-video">
+                <!-- Hidden Webcam Video Stream -->
+                <video id="webcamVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover opacity-90"></video>
+                <!-- Canvas Overlay for Bounding Boxes -->
+                <canvas id="overlayCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-10"></canvas>
+
+                <!-- Initial loading overlay state -->
+                <div id="camLoading" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-20 transition-opacity">
+                    <i class="fa-solid fa-camera text-red-500 text-4xl mb-3 animate-bounce"></i>
+                    <p class="text-sm font-medium text-slate-300">Initializing Webcam Feed...</p>
+                </div>
+            </div>
+
+            <!-- Stats & Latency Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl backdrop-blur flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
+                        <i class="fa-solid fa-gauge-high"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">Pipeline Latency</p>
+                        <p id="latencyDisplay" class="text-lg font-bold text-slate-100">-- ms</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl backdrop-blur flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">Faces Tracked</p>
+                        <p id="facesCountDisplay" class="text-lg font-bold text-slate-100">0</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl backdrop-blur col-span-2 sm:col-span-1 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">Active Alerts</p>
+                        <p id="alertsCountDisplay" class="text-lg font-bold text-rose-400">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Alert Log -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 backdrop-blur">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-list-ul text-red-500"></i> Real-Time Detection & Alert Log
+                    </h3>
+                    <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-slate-200 underline">Clear Log</button>
+                </div>
+                <div id="alertLogContainer" class="space-y-2.5 max-h-56 overflow-y-auto pr-2 text-xs font-mono">
+                    <div class="text-slate-500 text-center py-4">System armed. Awaiting detection events...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Enroll Suspect Form & Quick Info -->
+        <div class="space-y-6">
+            
+            <!-- Enroll Suspect Card -->
+            <div class="bg-gradient-to-b from-slate-900 to-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div class="flex items-center gap-2 mb-6">
+                    <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-200 text-base">Enroll Suspect from Webcam</h3>
+                </div>
+
+                <form id="enrollForm" onsubmit="handleEnroll(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Suspect Full Name</label>
+                        <input 
+                            type="text" 
+                            id="enrollName" 
+                            required 
+                            placeholder="e.g. John Doe" 
+                            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-red-500 transition text-slate-200 placeholder:text-slate-600"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Case ID / Warrant Ref</label>
+                        <input 
+                            type="text" 
+                            id="enrollCaseId" 
+                            required 
+                            placeholder="e.g. CASE-2026-8841" 
+                            class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-red-500 transition text-slate-200 placeholder:text-slate-600"
+                        >
+                    </div>
+
+                    <div class="pt-2">
+                        <button 
+                            type="submit" 
+                            id="enrollBtn"
+                            class="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-semibold rounded-xl text-sm shadow-lg shadow-red-600/30 transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <i class="fa-solid fa-camera-retro"></i> Capture & Enroll Subject
+                        </button>
+                    </div>
+                </form>
+
+                <div id="enrollMessage" class="mt-4 text-xs font-medium text-center hidden"></div>
+            </div>
+
+            <!-- Pipeline Information Card -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur space-y-3">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-microchip text-red-500"></i> Pipeline Specs
+                </h4>
+                <ul class="text-xs text-slate-400 space-y-2 list-disc pl-4">
+                    <li><strong class="text-slate-300">Detector:</strong> OpenCV Haar Cascade Classifier.</li>
+                    <li><strong class="text-slate-300">Normalization:</strong> 64x64 Grayscale, Histogram Equalized (`cv2.equalizeHist`), L2 Vector Normalized.</li>
+                    <li><strong class="text-slate-300">Metric:</strong> Cosine Similarity (Dot Product of normalized vectors, threshold 0.65).</li>
+                    <li><strong class="text-slate-300">Color-Coding:</strong> Green for verified/clear faces, Red for Watchlist Match alerts.</li>
+                </ul>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+        <p>SecOps Vision Matrix &bull; OpenCV Python Flask Backend &bull; Tailwind UI</p>
+    </footer>
+
+    <!-- Frontend Script (Strictly NO backticks or template literals) -->
+    <script>
+        var video = document.getElementById("webcamVideo");
+        var canvas = document.getElementById("overlayCanvas");
+        var ctx = canvas.getContext("2d");
+        var camLoading = document.getElementById("camLoading");
+        
+        var latencyDisplay = document.getElementById("latencyDisplay");
+        var facesCountDisplay = document.getElementById("facesCountDisplay");
+        var alertsCountDisplay = document.getElementById("alertsCountDisplay");
+        var alertLogContainer = document.getElementById("alertLogContainer");
+
+        var isDetecting = false;
+        var activeAlertsCount = 0;
+
+        // Initialize Webcam Stream
+        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false })
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.play();
+                camLoading.style.opacity = "0";
+                setTimeout(function() {
+                    camLoading.style.display = "none";
+                }, 500);
+                // Start inference loop
+                setInterval(sendFrameForDetection, 400);
+            })
+            .catch(function(err) {
+                console.error("Webcam access error: ", err);
+                camLoading.innerHTML = "<i class='fa-solid fa-triangle-exclamation text-red-500 text-3xl mb-2'></i><p class='text-sm text-red-400'>Webcam access denied or unavailable.</p>";
+            });
+
+        function sendFrameForDetection() {
+            if (isDetecting) return;
+            if (video.paused || video.ended) return;
+
+            isDetecting = true;
+
+            // Draw current video frame to an offscreen canvas to capture base64
+            var offCanvas = document.createElement("canvas");
+            offCanvas.width = video.videoWidth || 640;
+            offCanvas.height = video.videoHeight || 480;
+            var offCtx = offCanvas.getContext("2d");
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            var dataURL = offCanvas.toDataURL("image/jpeg", 0.7);
+
+            // Match displayed canvas size to actual video dimensions
+            canvas.width = offCanvas.width;
+            canvas.height = offCanvas.height;
+
+            fetch("/api/detect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: dataURL })
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                isDetecting = false;
+                latencyDisplay.innerText = data.latency_ms + " ms";
+                
+                var faces = data.faces || [];
+                facesCountDisplay.innerText = faces.length;
+
+                // Clear previous drawings
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                var currentFrameAlerts = 0;
+
+                for (var i = 0; i < faces.length; i++) {
+                    var f = faces[i];
+                    var box = f.box; // [x, y, w, h]
+                    var x = box[0];
+                    var y = box[1];
+                    var w = box[2];
+                    var h = box[3];
+
+                    ctx.lineWidth = 3;
+
+                    if (f.matched) {
+                        currentFrameAlerts++;
+                        ctx.strokeStyle = "#ef4444"; // Red alert box
+                        ctx.fillStyle = "rgba(239, 68, 68, 0.2)";
+                        
+                        // Draw bounding box
+                        ctx.fillRect(x, y, w, h);
+                        ctx.strokeRect(x, y, w, h);
+
+                        // Draw Label badge
+                        var labelText = "MATCH: " + f.name + " (" + f.confidence + "%)";
+                        ctx.font = "bold 14px monospace";
+                        var textWidth = ctx.measureText(labelText).width;
+                        
+                        ctx.fillStyle = "#ef4444";
+                        ctx.fillRect(x, y > 30 ? y - 30 : 0, textWidth + 16, 28);
+
+                        ctx.fillStyle = "#ffffff";
+                        ctx.fillText(labelText, x + 8, y > 30 ? y - 10 : 20);
+
+                        // Log Alert
+                        appendAlertLog(f.name, f.case_id, f.confidence);
+                    } else {
+                        ctx.strokeStyle = "#10b981"; // Green clear box
+                        ctx.fillStyle = "rgba(16, 185, 129, 0.1)";
+
+                        ctx.fillRect(x, y, w, h);
+                        ctx.strokeRect(x, y, w, h);
+
+                        var labelText = "CLEAR (Unmatched)";
+                        ctx.font = "bold 12px monospace";
+                        var textWidth = ctx.measureText(labelText).width;
+
+                        ctx.fillStyle = "#10b981";
+                        ctx.fillRect(x, y > 25 ? y - 25 : 0, textWidth + 12, 22);
+
+                        ctx.fillStyle = "#ffffff";
+                        ctx.fillText(labelText, x + 6, y > 25 ? y - 9 : 15);
+                    }
+                }
+
+                activeAlertsCount = currentFrameAlerts;
+                alertsCountDisplay.innerText = activeAlertsCount;
+            })
+            .catch(function(err) {
+                isDetecting = false;
+                console.error("Detection error:", err);
+            });
+        }
+
+        function handleEnroll(event) {
+            event.preventDefault();
+            var nameInput = document.getElementById("enrollName");
+            var caseIdInput = document.getElementById("enrollCaseId");
+            var enrollBtn = document.getElementById("enrollBtn");
+            var enrollMessage = document.getElementById("enrollMessage");
+
+            var name = nameInput.value.trim();
+            var caseId = caseIdInput.value.trim();
+
+            if (!name || !caseId) return;
+
+            // Capture frame from video
+            var offCanvas = document.createElement("canvas");
+            offCanvas.width = video.videoWidth || 640;
+            offCanvas.height = video.videoHeight || 480;
+            var offCtx = offCanvas.getContext("2d");
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            var dataURL = offCanvas.toDataURL("image/jpeg", 0.8);
+
+            enrollBtn.disabled = true;
+            enrollBtn.innerHTML = "<i class='fa-solid fa-spinner animate-spin'></i> Enrolling Subject...";
+
+            fetch("/api/enroll", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: name, case_id: caseId, image: dataURL })
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                enrollBtn.disabled = false;
+                enrollBtn.innerHTML = "<i class='fa-solid fa-camera-retro'></i> Capture & Enroll Subject";
+                enrollMessage.classList.remove("hidden");
+
+                if (data.status === "enrolled") {
+                    enrollMessage.className = "mt-4 text-xs font-medium text-center text-emerald-400";
+                    enrollMessage.innerText = "Success! Watchlist size: " + data.count + " suspects.";
+                    nameInput.value = "";
+                    caseIdInput.value = "";
+                } else {
+                    enrollMessage.className = "mt-4 text-xs font-medium text-center text-rose-400";
+                    enrollMessage.innerText = "Error: " + data.message;
+                }
+            })
+            .catch(function(err) {
+                enrollBtn.disabled = false;
+                enrollBtn.innerHTML = "<i class='fa-solid fa-camera-retro'></i> Capture & Enroll Subject";
+                enrollMessage.classList.remove("hidden");
+                enrollMessage.className = "mt-4 text-xs font-medium text-center text-rose-400";
+                enrollMessage.innerText = "Network error during enrollment.";
+                console.error(err);
+            });
+        }
+
+        var lastLoggedTime = {};
+        function appendAlertLog(name, caseId, confidence) {
+            var now = new Date().toLocaleTimeString();
+            var logKey = name + "_" + caseId;
+            
+            // Throttle duplicate spam logs for same person within 3 seconds
+            if (lastLoggedTime[logKey] && (Date.now() - lastLoggedTime[logKey] < 3000)) {
+                return;
+            }
+            lastLoggedTime[logKey] = Date.now();
+
+            // Clear initial placeholder if present
+            if (alertLogContainer.children.length === 1 && alertLogContainer.children[0].classList.contains("text-slate-500")) {
+                alertLogContainer.innerHTML = "";
+            }
+
+            var logItem = document.createElement("div");
+            logItem.className = "bg-rose-950/40 border border-rose-900/60 p-2.5 rounded-xl flex items-center justify-between text-rose-200 animate-fadeIn";
+            
+            var leftDiv = document.createElement("div");
+            leftDiv.innerHTML = "<strong class='text-rose-400'>[MATCH ALERT]</strong> Suspect: " + name + " (ID: " + caseId + ")";
+            
+            var rightDiv = document.createElement("div");
+            rightDiv.className = "text-slate-400 text-[10px]";
+            rightDiv.innerText = now + " | Conf: " + confidence + "%";
+
+            logItem.appendChild(leftDiv);
+            logItem.appendChild(rightDiv);
+
+            alertLogContainer.insertBefore(logItem, alertLogContainer.firstChild);
+
+            // Keep log size reasonable
+            if (alertLogContainer.children.length > 20) {
+                alertLogContainer.removeChild(alertLogContainer.lastChild);
+            }
+        }
+
+        function clearLogs() {
+            alertLogContainer.innerHTML = "<div class='text-slate-500 text-center py-4'>Log cleared. Awaiting detection events...</div>";
+        }
+    </script>
+</body>
+</html>
